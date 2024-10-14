@@ -1,0 +1,116 @@
+services:
+  elasticsearch:
+    # Usa a imagem oficial do Elasticsearch da Elastic versão 8.15.2
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.2
+    
+    # Nome do container para identificação dentro da rede Docker
+    container_name: elasticsearch
+    
+    environment:
+      # Define o Elasticsearch como um nó único (single-node), adequado para testes e desenvolvimento local
+      - discovery.type=single-node
+      
+      # Habilita a segurança (incluindo autenticação) no Elasticsearch
+      - xpack.security.enabled=true
+      
+      # Habilita o uso de chaves de API para autenticação
+      - xpack.security.authc.api_key.enabled=true
+      
+      # Define que o Elasticsearch deve ser acessível em qualquer IP da rede (0.0.0.0)
+      - network.host=0.0.0.0
+      
+      # Define opções de memória Java para o Elasticsearch (neste caso, 2 GB de heap para JVM)
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+    
+    # Conecta este serviço à rede 'elastic', que será definida mais tarde
+    networks:
+      - elastic
+    
+    # Define as portas expostas: 9200 para a API HTTP e 9300 para comunicação entre nós
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    
+    # Define um volume local para persistir os dados do Elasticsearch, garantindo que não sejam perdidos após reiniciar o container
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  kibana:
+    # Usa a imagem oficial do Kibana da Elastic versão 8.15.2
+    image: docker.elastic.co/kibana/kibana:8.15.2
+    
+    # Nome do container Kibana
+    container_name: kibana
+    
+    environment:
+      # Define o endereço do Elasticsearch para o Kibana se conectar
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      
+      # Usuário usado pelo Kibana para autenticar no Elasticsearch
+      - ELASTICSEARCH_USERNAME=kibana_user  # Recomenda-se criar um usuário específico para o Kibana
+      
+      # Senha do usuário que será usado para se conectar ao Elasticsearch
+      - ELASTICSEARCH_PASSWORD=your_secure_password
+      
+      # Habilita a segurança no Kibana (usado para autenticação e controle de acesso)
+      - xpack.security.enabled=true
+      
+      # Habilita o uso de chaves de API no Kibana para comunicação segura com o Elasticsearch
+      - xpack.security.authc.api_key.enabled=true
+    
+    # Este serviço depende do Elasticsearch estar rodando primeiro
+    depends_on:
+      - elasticsearch
+    
+    # Conecta o Kibana à rede 'elastic'
+    networks:
+      - elastic
+    
+    # Define a porta exposta para acessar a interface web do Kibana (5601)
+    ports:
+      - "5601:5601"
+
+  apm-server:
+    # Usa a imagem oficial do APM Server da Elastic versão 8.15.2
+    image: docker.elastic.co/apm/apm-server:8.15.2
+    
+    # Nome do container APM Server
+    container_name: apm-server
+    
+    environment:
+      # Define o URL para o APM Server se conectar ao Elasticsearch
+      - ELASTIC_APM_SERVER_URL=http://apm-server:8200
+      
+      # Configura o APM Server para enviar dados de performance para o Elasticsearch
+      - output.elasticsearch.hosts=["http://elasticsearch:9200"]
+      
+      # Chave de API gerada para o APM Server se autenticar no Elasticsearch
+      - output.elasticsearch.api_key=SWsPxW4JSFKwy8T6Zpc_Gw
+      
+      # Habilita a segurança no APM Server
+      - xpack.security.enabled=true
+      
+      # Habilita o uso de chaves de API no APM Server
+      - xpack.security.authc.api_key.enabled=true
+    
+    # O APM Server depende que o Elasticsearch esteja rodando antes
+    depends_on:
+      - elasticsearch
+    
+    # Conecta o APM Server à rede 'elastic'
+    networks:
+      - elastic
+    
+    # Define a porta exposta para o APM Server (8200), onde ele coleta dados de performance
+    ports:
+      - "8200:8200"
+
+# Definição da rede 'elastic' que conecta todos os containers (Elasticsearch, Kibana e APM Server)
+networks:
+  elastic:
+    driver: bridge  # Usa o driver de rede bridge padrão do Docker para conectar os containers
+
+# Volume para persistência de dados do Elasticsearch
+volumes:
+  esdata:
+    driver: local  # Usa o driver de volume local para armazenamento persistente de dados
